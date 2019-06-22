@@ -5,13 +5,11 @@
 \begin{spacing}{2.0}
 \begin{tabular}{rll}
 \v{program} &$::=$&
-  $\overline{\v{module}}$
-\\
-\v{module} &$::=$&
-  \k{Begin Module} \ \v{n} \ \k{.} \ $\overline{s}$ \ \k{End Module} \ \v{n} \ \k{.}
+  $\overline{\v{s}}$
 \\
 \v{s} &$::=$&
-    \k{Definition} \ \v{n} \ \k{:} \ t \ \k{:=} \ \v{e} \ \k{.} \\ &&
+    \k{Begin Module} \ \v{n} \ \k{.} \ $\overline{s}$ \ \k{End Module} \ \v{n} \ \k{.} \\ &&
+\|  \k{Definition} \ \v{n} \ \k{:} \ t \ \k{:=} \ \v{e} \ \k{.} \\ &&
 \|  \k{Signature} \ \v{n} \ \k{:=} \ t \ \k{.}
 \|  \k{Assumption} \ \v{n} \ \k{:} \ t \ \k{.}
 \\
@@ -20,7 +18,7 @@
 \|  \k{(} \ \v{e}$\p$ \ \v{e} \ \k{)}
 \|  \k{(} \ \k{let} \ \v{n} \k{:=} \v{e} \ \k{in} \ \v{e} \ \k{)} \\ &&
 \|  \k{(} \ \k{fun} \ \v{n} \ \k{\maparrow} \ \v{e} \k{)}
-\|  \k{(} \ \k{rec} \ \v{n} \ \k{in} \ \v{n} \ \k{\maparrow} \ \v{e} \ \k{)}
+\|  \k{(} \ \k{rec} \ \v{n} \ \k{of} \ \v{n} \ \k{\maparrow} \ \v{e} \ \k{)}
 \\
 \v{v} &$::=$&
     \v{primitive-value}

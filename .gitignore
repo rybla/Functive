@@ -8,3 +8,8 @@ update-config.sh
 
 # assets
 splash.xcf
+
+# latex
+**.log
+**.synctex.gz
+**.toc

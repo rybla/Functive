@@ -1,6 +1,7 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.9)  16 JUN 2019 12:17
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.9)  22 JUN 2019 16:34
 entering extended mode
  restricted \write18 enabled.
+ file:line:error style messages enabled.
  %&-line parsing enabled.
 **functive-main
 (./functive-main.tex
@@ -460,9 +461,9 @@ cal/texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr
 /local/texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb><
 /usr/local/texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/symbols/msb
 m10.pfb>
-Output written on functive-main.pdf (2 pages, 104917 bytes).
+Output written on functive-main.pdf (2 pages, 104739 bytes).
 PDF statistics:
- 155 PDF objects out of 1000 (max. 8388607)
+ 154 PDF objects out of 1000 (max. 8388607)
  56 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)

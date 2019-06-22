@@ -12,7 +12,7 @@ newtype Program =
 
 -- stmt
 data Statement =
-    Module [Statement]        -- Begin Module n . [stmt] End Module n .
+    Module     [Statement]    -- Begin Module n . [stmt] End Module n .
   | Definition Name Type Expr -- Definition n : t := e .
   | Signature  Name Type      -- Signature n = t .
   | Assumption Name Type      -- Assumption n : t .
@@ -31,15 +31,25 @@ data Expr =
 data ExprPrim =
     ExprPrimInt Int
   | ExprPrimBool Bool
+  | ExprPrimUnit
   deriving (Show)
 
 -- t | s | ...
 data Type =
     TypeName Name      -- n
+  | TypePrim TypePrim  -- P
   | TypeFun  Type Type -- (t -> s)
   | TypeApp  Type Type -- (t s)
   | TypeCon  Type Expr -- (t e)
   | TypeProd Name Type -- (forall n, t)
+  deriving (Show)
+
+-- P
+data TypePrim =
+    TypePrimInt
+  | TypePrimBool
+  | TypePrimUnit
+  | TypePrimType
   deriving (Show)
 
 -- n
