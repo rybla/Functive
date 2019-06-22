@@ -24,6 +24,8 @@ dependencies:
 - bytestring >= 0.10.2
 - re2 >= 0.3
 - transformers >= 0.5
+- mtl
+- vector
 
 library:
   source-dirs: src
