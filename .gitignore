@@ -1,3 +1,10 @@
+# stack
 .stack-work/
 functive-hs.cabal
 *~
+
+# tools
+update-config.sh
+
+# assets
+splash.xcf
