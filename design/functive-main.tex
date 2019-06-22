@@ -1,0 +1,40 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{setspace}
+\usepackage{titling}
+\setlength{\droptitle}{-4em}
+\usepackage[margin=1in]{geometry}
+
+\usepackage{functive}
+
+% font
+\usepackage{FiraMono}
+\usepackage[T1]{fontenc}
+
+\renewcommand{\k}[1]{{\small \texttt{#1}}} % keyword
+\renewcommand{\v}[1]{{\textit{#1}}} % variable
+\renewcommand{\|}{ \ $|$ \ }
+\newcommand{\maparrow}{=\textgreater}
+\newcommand{\funarrow}{-\textgreater}
+
+\newcommand{\p}{^\prime}
+
+\title{\Functive}
+\author{Henry Blanchette}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{spacing}{1.5}
+\tableofcontents
+\end{spacing}
+
+\newpage
+
+\section{Grammar}
+\input{grammar/grammar}
+
+\end{document}

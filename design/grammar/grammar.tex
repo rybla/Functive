@@ -1,0 +1,60 @@
+\subsection{Formalization}
+
+\begin{table}[ht]
+\centering
+\begin{spacing}{2.0}
+\begin{tabular}{rll}
+\v{program} &$::=$&
+  $\overline{\v{module}}$
+\\
+\v{module} &$::=$&
+  \k{Begin Module} \ \v{n} \ \k{.} \ $\overline{s}$ \ \k{End Module} \ \v{n} \ \k{.}
+\\
+\v{s} &$::=$&
+    \k{Definition} \ \v{n} \ \k{:} \ t \ \k{:=} \ \v{e} \ \k{.} \\ &&
+\|  \k{Signature} \ \v{n} \ \k{:=} \ t \ \k{.}
+\|  \k{Assumption} \ \v{n} \ \k{:} \ t \ \k{.}
+\\
+\v{e} &$::=$&
+    \v{v}
+\|  \k{(} \ \v{e}$\p$ \ \v{e} \ \k{)}
+\|  \k{(} \ \k{let} \ \v{n} \k{:=} \v{e} \ \k{in} \ \v{e} \ \k{)} \\ &&
+\|  \k{(} \ \k{fun} \ \v{n} \ \k{\maparrow} \ \v{e} \k{)}
+\|  \k{(} \ \k{rec} \ \v{n} \ \k{in} \ \v{n} \ \k{\maparrow} \ \v{e} \ \k{)}
+\\
+\v{v} &$::=$&
+    \v{primitive-value}
+\|  \v{n}
+\\
+\v{t} &$::=$&
+    \v{primitive-type}
+\|  \v{n}
+\|  \k{(} \ \v{t} \ \v{t} \ \k{)}
+\|  \k{(} \ \v{t} \ \v{e} \ \k{)} \\ &&
+\|  \k{(} \ \v{t} \ \k{\funarrow} \ \v{t} \ \k{)}
+\|  \k{(} \ \k{forall} \ \v{n} \ \k{:} \ \v{t} \ \k{,} \ \v{t} \ \k{)}
+\\
+\v{primitive-value} &$::=$&
+    $z \in \mathbb{Z}$
+\|  $b \in \{ \mathit{true}, \mathit{false} \}$
+\|  \k{()}
+\\
+\v{primitive-type} &$::=$&
+      \k{integer}
+  \|  \k{boolean}
+  \|  \k{unit}
+  \|  \k{type}
+\\
+\v{n} &$::=$&
+      \v{string}
+  \|  \v{n}.\v{string}
+\\
+\end{tabular}
+\end{spacing}
+\end{table}
+
+\subsection{Notation}
+
+\begin{itemize}
+\item An expression with an overline may be repeated any natural number of times.
+\end{itemize}
