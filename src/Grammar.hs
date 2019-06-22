@@ -1,18 +1,22 @@
 module Grammar
-( Program
+( Prgm(..)
+, Stmt(..)
+, Expr(..), ExprPrim(..)
+, Type(..), TypePrim(..)
+, Name
 ) where
 
 import           Data.ByteString          as BS
 import           Data.ByteString.Internal
 
 -- prgm
-newtype Program =
-    Program [Statement] -- [stmt]
+newtype Prgm =
+    Prgm [Stmt]   -- [stmt]
   deriving (Show)
 
 -- stmt
-data Statement =
-    Module     [Statement]    -- Begin Module n . [stmt] End Module n .
+data Stmt =
+    Module     Name [Stmt]    -- Begin Module n . [stmt] End Module n .
   | Definition Name Type Expr -- Definition n : t := e .
   | Signature  Name Type      -- Signature n = t .
   | Assumption Name Type      -- Assumption n : t .
@@ -22,8 +26,8 @@ data Statement =
 data Expr =
     ExprName Name           -- n
   | ExprPrim ExprPrim       -- p
-  | ExprApp  Expr Expr      -- (e f)
-  | ExprFun  Name Expr      -- (fun n -> e)
+  | ExprAppl Expr Expr      -- (e f)
+  | ExprFunc Name Expr      -- (fun n -> e)
   | ExprRec  Name Name Expr -- (rec n of m -> e)
   deriving (Show)
 
@@ -38,9 +42,9 @@ data ExprPrim =
 data Type =
     TypeName Name      -- n
   | TypePrim TypePrim  -- P
-  | TypeFun  Type Type -- (t -> s)
-  | TypeApp  Type Type -- (t s)
-  | TypeCon  Type Expr -- (t e)
+  | TypeFunc Type Type -- (t -> s)
+  | TypeAppl Type Type -- (t s)
+  | TypeCons Type Expr -- (t e)
   | TypeProd Name Type -- (forall n, t)
   deriving (Show)
 
