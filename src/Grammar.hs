@@ -4,10 +4,15 @@ module Grammar
 , Expr(..), ExprPrim(..)
 , Type(..), TypePrim(..)
 , Name
+, syneqExpr, syneqType
 ) where
 
 import           Data.ByteString          as BS
 import           Data.ByteString.Internal
+
+------------------------------------------------------------------------------------------------------------------------------
+-- Types
+------------------------------------------------------------------------------------------------------------------------------
 
 -- prgm
 newtype Prgm =
@@ -59,3 +64,17 @@ data TypePrim =
 -- n
 type Name =
     ByteString
+
+--
+
+------------------------------------------------------------------------------------------------------------------------------
+-- Utilities
+------------------------------------------------------------------------------------------------------------------------------
+
+-- syntactical equality
+
+syneqExpr :: Expr -> Expr -> Bool
+syneqExpr e f = error "unimplemented"
+
+syneqType :: Type -> Type -> Bool
+syneqType t s = error "unimplemented"
