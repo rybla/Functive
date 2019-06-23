@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Grammar
 ( Prgm(..)
 , Stmt(..)
@@ -5,6 +7,7 @@ module Grammar
 , Type(..), TypePrim(..)
 , Name
 , syneqExpr, syneqType
+, getPrimExprType
 ) where
 
 import           Data.ByteString          as BS
@@ -31,9 +34,9 @@ data Stmt =
 data Expr =
     ExprName Name           -- n
   | ExprPrim ExprPrim       -- p
-  | ExprAppl Expr Expr      -- (e f)
   | ExprFunc Name Expr      -- (fun n -> e)
-  | ExprRec  Name Name Expr -- (rec n of m -> e)
+  | ExprRecu Name Name Expr -- (rec n of m -> e)
+  | ExprAppl Expr Expr      -- (e f)
   deriving (Show)
 
 -- p
@@ -49,8 +52,8 @@ data Type =
   | TypePrim TypePrim  -- P
   | TypeFunc Type Type -- (t -> s)
   | TypeAppl Type Type -- (t s)
-  | TypeCons Type Expr -- (t e)
   | TypeProd Name Type -- (forall n, t)
+  | TypeCons Type Expr -- (t e)
   deriving (Show)
 
 -- P
@@ -78,3 +81,11 @@ syneqExpr e f = error "unimplemented"
 
 syneqType :: Type -> Type -> Bool
 syneqType t s = error "unimplemented"
+
+-- primitive exprs and types
+
+getPrimExprType :: ExprPrim -> TypePrim
+getPrimExprType = \case
+  ExprPrimInt  _ -> TypePrimInt
+  ExprPrimBool _ -> TypePrimBool
+  ExprPrimUnit   -> TypePrimUnit
