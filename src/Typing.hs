@@ -12,6 +12,7 @@ import qualified Data.ByteString           as BS
 import qualified Data.ByteString.Char8     as BSC
 import           Data.ByteString.Internal
 import           Grammar
+import           Reducing
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Judger
@@ -50,13 +51,10 @@ data Context = Context
 type Scope       = ByteString
 
 type Declaration = (Expr, TypeVar)
-type Rewrite     = (FreeTypeVar, TypeVar)
+type Rewrite     = (TypeVar, TypeVar)
 
-data TypeVar     = Bound Type
-                 | Free  FreeTypeVar
-                 deriving (Show)
-
-data FreeTypeVar = FreeName Name
+data TypeVar     = Bound    Type
+                 | FreeName Name
                  | FreeFunc TypeVar TypeVar
                  | FreeAppl TypeVar TypeVar
                  | FreeProd Name    TypeVar
@@ -65,70 +63,94 @@ data FreeTypeVar = FreeName Name
 
 -- syntactical equality
 
-syneqFreeTypeVar :: FreeTypeVar -> FreeTypeVar -> Bool
-syneqFreeTypeVar a b = error "unimplemented"
+syneqTypeVar :: TypeVar -> TypeVar -> Bool
+syneqTypeVar a b = case (a, b) of
+  (Bound t, Bound s)           -> syneqType t s
+  (FreeName n,   FreeName m  ) -> syneqName n m
+  (FreeAppl t s, FreeAppl r q) -> syneqTypeVar t r && syneqTypeVar s q
+  (FreeProd n t, FreeProd m s) -> syneqName    n m && syneqTypeVar t s
+  (FreeCons t e, FreeCons s f) -> syneqTypeVar t s && eqExpr e f -- uses reduceExpr
+  (_, _)                       -> False
 
 -- accessors and mutators
 
-newFreeName :: Judger FreeTypeVar
+
+-- create new FreeName of the form «t#» where "#" is a natural.
+newFreeName :: Judger TypeVar
 newFreeName = do
   i <- gets freeTypeVarCounter
   modify $ \ctx -> ctx { freeTypeVarCounter=i+1 } -- increment
-  return . FreeName . BS.concat $ [BSC.pack "t", BSC.pack . show $ i] -- create new FreeTypeVar
+  return . FreeName . BS.concat $ [BSC.pack "t", BSC.pack . show $ i]
 
--- adds the declaration e:tv to the context
+-- declare: « e:t »
 declare :: Expr -> TypeVar -> Judger ()
-declare e tv = modify $ \ctx -> ctx { declarations=(e,tv):declarations ctx }
+declare e t = modify $ \ctx -> ctx { declarations=(e,t):declarations ctx }
 
-rewrite :: FreeTypeVar -> TypeVar -> Judger ()
-rewrite a tv = modify $ \ctx -> ctx { rewrites=(a,tv):rewrites ctx }
+-- rewrite: « a:=t »
+-- requires « a » is free
+rewrite :: TypeVar -> TypeVar -> Judger ()
+rewrite (Bound s) t = fail $ "attempted to rewrite bound type: " ++ show s ++ ":=" ++ show t
+rewrite a         t = modify $ \ctx -> ctx { rewrites=(a,t):rewrites ctx }
 
 -- apply any rewrites to the given typevar
 getRewritten :: TypeVar -> Judger TypeVar
 getRewritten (Bound t) = return (Bound t)
-getRewritten (Free  a) =
+getRewritten a =
   -- scan for first matching rewrite
-  let helper mb' (b,s) =
-        case mb' of
-          -- already found first matching
-          Just b' -> Just b'
-          -- check for match
-          Nothing -> if syneqFreeTypeVar a b then Just s else Nothing
+  let helper (Just b') (b,s) = Just b'             -- already found first matching
+      helper Nothing   (b,s) = if syneqTypeVar a b -- check for match
+        then Just s else Nothing
   in do
     rs <- gets rewrites
     case foldl helper Nothing rs of
-      -- no rewrite to apply, so return as is
-      Nothing  -> return (Free a)
-      -- apply rewrite, then check for any others
-      Just tv' -> getRewritten tv'
+      Nothing -> return a         -- no rewrite to apply, so return as is
+      Just a' -> getRewritten a'  -- apply rewrite, then check for any others
 
 -- gets simplified type var declared for the given expression
--- if there is none in the current context, adds a new free typevar and returns that
+-- if there is none in the current context, errors
 getDeclaration :: Expr -> Judger TypeVar
 getDeclaration e =
   -- scan for first matching declaration
-  let helper jma (f,b) =
-        jma >>= \case
-          Just a  -> return $ Just a
-          Nothing -> if syneqExpr e f then Just <$> getRewritten b else return Nothing
+  let helper (Just a) _     = return $ Just a  -- already found match
+      helper Nothing  (f,t) = if syneqExpr e f -- check for match
+        then Just <$> getRewritten t else return Nothing
   in do
     ds <- gets declarations
-    mb_tv <- foldl helper (return Nothing) ds
-    case mb_tv of
-      -- has been declared, so retrieve declared TypeVar
-      Just tv -> return tv
-      -- not declared yes, so make new FreeName for it
-      Nothing -> do { a <- newFreeName ; declare e (Free a) ; getDeclaration e }
+    mb_t <- foldl (\jma (f,t) -> do { ma <- jma ; helper ma (f,t) }) (return Nothing) ds
+    case mb_t of
+      Just t  -> return t
+      Nothing -> fail $ "no declaration found for expr: " ++ show e
 
 -- attempts to unify types; may add rewrites to context
 unify :: TypeVar -> TypeVar -> Judger ()
-unify tv tv' = case (tv, tv') of
-  (Free  a, Free  b) -> rewrite b (Free a ) -- e:a , f:b  =>  b := a
-  (Free  a, Bound s) -> rewrite a (Bound s) -- e:a , f:s  =>  a := s
-  (Bound t, Free  b) -> rewrite b (Bound t) -- e:t , f:b  =>  b := t
-  (Bound t, Bound s) -> if syneqType t s    -- e:t , f:s  =>  t = s
-    then return () else lift $
-      Inconsistent "unable to unify types"
+unify tv1 tv2 =
+  let unableToUnify = fail $ "unable to unify bound types: " ++ show tv1 ++ " , " ++ show tv2 in
+  let symmetricCase = unify tv2 tv1 in
+  case (tv1, tv2) of
+    -- Bound on left
+    (Bound t,              FreeName n  )  -> rewrite (FreeName n) (Bound t)
+    (Bound t,              Bound s     )  -> unless (syneqType t s) unableToUnify
+    (Bound (TypeFunc t s), FreeFunc a b)  -> do { unify (Bound t) a ; unify (Bound s) b }
+    (Bound (TypeAppl t s), FreeAppl a b)  -> do { unify (Bound t) a ; unify (Bound s) b }
+    (Bound (TypeProd n t), FreeProd m a)  -> do { nT <- getDeclaration (ExprName n) ; mT <- getDeclaration (ExprName m)
+                                                ; unify nT mT
+                                                ; unify (Bound t) a }
+    (Bound (TypeCons t e), FreeCons a f)  -> do { unify (Bound t) a
+                                                ; eT <- getDeclaration e ; fT <- getDeclaration f ; unify eT fT }
+    -- Free on left
+    (FreeFunc a b,         FreeFunc c d)  -> do { unify a c ; unify b d }
+    (FreeAppl a b,         FreeAppl c d)  -> do { unify a c ; unify b d }
+    (FreeCons a e,         FreeCons b f)  -> do { unify a b
+                                                ; eT <- getDeclaration e ; fT <- getDeclaration f ; unify eT fT }
+    -- symmetric cases
+    (FreeName n,   _) -> symmetricCase
+    (FreeCons a e, _) -> symmetricCase
+    (FreeFunc a b, _) -> symmetricCase
+    (FreeAppl a b, _) -> symmetricCase
+
+    -- no other pairs can unify
+    (_,  _) -> unableToUnify
+
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Type Checking
@@ -142,7 +164,7 @@ judgeStmt :: Stmt -> Judger ()
 judgeStmt stmt =
   case stmt of
     Module n stmts ->
-      error "unimplemented"
+      error "TODO: handle namespaces for definitions via modules"
 
     Definition n t e -> do
       declare (ExprName n) (Bound t)      -- => n:t
@@ -157,31 +179,28 @@ judgeStmt stmt =
 
 judgeExpr :: Expr -> Judger ()
 judgeExpr = \case
-  ExprName n ->
-    void $ getDeclaration (ExprName n)
+  ExprName n -> do
+    a <- newFreeName        -- +a
+    declare (ExprName n) a  -- => n:a
 
   ExprPrim p ->
-    declare (ExprPrim p) (Bound . TypePrim $ getPrimExprType p)
+    declare (ExprPrim p) (Bound . TypePrim $ getPrimExprType p) -- p:pT
 
   ExprFunc n e -> do
-    judgeExpr e; b <- getDeclaration e          -- e:b
-    a <- getDeclaration (ExprName n)            -- n:a
-    declare (ExprFunc n e) (Free$ FreeFunc a b) -- (fun n => e):a->b
+    judgeExpr e; b <- getDeclaration e                        -- e:b
+    judgeExpr (ExprName n); a <- getDeclaration (ExprName n)  -- n:a
+    declare (ExprFunc n e) (FreeFunc a b)                     -- => (fun n => e):a->b
 
   ExprAppl e f -> do
-    judgeExpr e; c <- getDeclaration e    -- e:c
-    judgeExpr f; a <- getDeclaration f    -- f:a
-    b <- newFreeName                      -- => +b
-    unify c (Free $ FreeFunc a (Free b))  -- => c ~ (a->b)
-    declare (ExprAppl e f) (Free b)       -- => (e f):b
+    judgeExpr e; c <- getDeclaration e  -- e:c
+    judgeExpr f; a <- getDeclaration f  -- f:a
+    b <- newFreeName                    -- => +b
+    unify c (FreeFunc a b)              -- => c ~ (a->b)
+    declare (ExprAppl e f) b            -- => (e f):b
 
   ExprRecu n m e -> do
-    judgeExpr e; b <- getDeclaration e              -- e:b
-    a <- getDeclaration (ExprName m)                -- m:a
-    c <- getDeclaration (ExprName n)                -- n:c
-    unify b c                                       -- => b ~ c
-    declare (ExprRecu n m e) (Free $ FreeFunc a b)  -- (rec n of m => e):a->b
-    return ()
-
-judgeExprPrim :: ExprPrim -> Judger ()
-judgeExprPrim prim = error "unimplemented"
+    judgeExpr e; b <- getDeclaration e                        -- e:b
+    judgeExpr (ExprName m); a <- getDeclaration (ExprName m)  -- n:c
+    judgeExpr (ExprName n); c <- getDeclaration (ExprName n)  -- m:a
+    unify b c                                                 -- => b ~ c
+    declare (ExprRecu n m e) (FreeFunc a b)                   -- (rec n of m => e):a->b

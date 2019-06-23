@@ -6,7 +6,7 @@ module Grammar
 , Expr(..), ExprPrim(..)
 , Type(..), TypePrim(..)
 , Name
-, syneqExpr, syneqType
+, syneqName, syneqExpr, syneqType
 , getPrimExprType
 ) where
 
@@ -81,6 +81,9 @@ syneqExpr e f = error "unimplemented"
 
 syneqType :: Type -> Type -> Bool
 syneqType t s = error "unimplemented"
+
+syneqName :: Name -> Name -> Bool
+syneqName = (==)
 
 -- primitive exprs and types
 
