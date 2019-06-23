@@ -80,6 +80,10 @@ declare :: Expr -> TypeVar -> Judger ()
 declare e tv =
   modify $ \ctx -> ctx { declarations=(e,tv):declarations ctx }
 
+rewrite :: FreeTypeVar -> TypeVar -> Judger ()
+rewrite a tv =
+  modify $ \ctx -> ctx { rewrites=(a,tv):rewrites ctx }
+
 -- apply any rewrites to the given typevar
 getRewritten :: TypeVar -> Judger TypeVar
 getRewritten (Bound t) = return (Bound t)
@@ -118,13 +122,20 @@ unify e f = do
   -- |- f:fT
   fT <- getDeclaration f
   case (eT, fT) of
-    (Bound t, Bound s) ->
+    (Bound t, Bound s) -> -- e:t , f:s
       if syneqType t s
-        then return ()
-        else lift $ Inconsistent "unable to unify types"
-    (Free  a, Bound s) -> fail "TODO"
-    (Bound t, Free  b) -> fail "TODO"
-    (Free  a, Free  b) -> fail "TODO"
+        then return ()    -- f = s
+        else lift $       -- f != s
+          Inconsistent "unable to unify types"
+
+    (Free  a, Bound s) -> -- e:a , f:s
+      rewrite a (Bound s) -- => a := s
+
+    (Bound t, Free  b) -> -- e:t , f:b
+      rewrite b (Bound t) -- => b := t
+
+    (Free  a, Free  b) -> -- e:a , f:b
+      rewrite b (Free a) -- => b := a
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Type Checking
@@ -137,7 +148,8 @@ judgePrgm (Prgm stmts) =
 judgeStmt :: Stmt -> Judger ()
 judgeStmt stmt =
   case stmt of
-    Module n stmts   -> error "unimplemented"
+    Module n stmts ->
+      error "unimplemented"
     Definition n t e -> do
       judgeExpr e
       declare (ExprName n) (Bound t)
