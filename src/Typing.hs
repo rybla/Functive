@@ -1,8 +1,9 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Typing
-( judgePrgm
+( checkPrgm
+, TypeContext(..), emptyTypeContext
+, CheckStatus(..)
 ) where
 
 import           Control.Monad
@@ -15,43 +16,60 @@ import           Grammar
 import           Reducing
 
 ------------------------------------------------------------------------------------------------------------------------------
--- Judger
+-- Check
 ------------------------------------------------------------------------------------------------------------------------------
 
-type Judger a = StateT Context JudgerStatus a
+type Check a = StateT TypeContext CheckStatus a
 
-data JudgerStatus a = Consistent a | Inconsistent String
+data CheckStatus a = Consistent a | Inconsistent String
 
-instance Functor JudgerStatus where
+instance Functor CheckStatus where
   fmap f ja = case ja of { Consistent a -> Consistent (f a) ; Inconsistent msg -> Inconsistent msg }
 
-instance Applicative JudgerStatus where
+instance Applicative CheckStatus where
   pure = Consistent
   jf <*> ja = case jf of { Consistent f -> fmap f ja ; Inconsistent msg -> Inconsistent msg }
 
-instance Monad JudgerStatus where
+instance Monad CheckStatus where
   ja >>= a_jb = case ja of { Consistent a -> a_jb a ; Inconsistent msg -> Inconsistent msg }
 
-instance Show a => Show (JudgerStatus a) where
+instance Show a => Show (CheckStatus a) where
   show (Consistent a)     = "Consistent " ++ show a
   show (Inconsistent msg) = "Inconsistent: " ++ msg
 
 ------------------------------------------------------------------------------------------------------------------------------
--- Type Context
+-- Type TypeContext
 ------------------------------------------------------------------------------------------------------------------------------
 
+------------------------------------------------------------------------------------------------------------------------------
 -- types
 
-data Context = Context
+-- TypeContext
+
+data TypeContext = TypeContext
   { freeTypeVarCounter :: Int
   , rewrites           :: [Rewrite]
   , declarations       :: [Declaration]
-  , children           :: [(Scope, Context)] }
+  , children           :: [(Scope, TypeContext)] }
 
 type Scope       = ByteString
 
 type Declaration = (Expr, TypeVar)
 type Rewrite     = (TypeVar, TypeVar)
+
+emptyTypeContext :: TypeContext
+emptyTypeContext = TypeContext
+  { freeTypeVarCounter = 0
+  , rewrites           = []
+  , declarations       = []
+  , children           = [] }
+
+instance Show TypeContext where
+  show ctx =
+    "rewrites:\n"     ++ foldl (\str (t,s) -> str++" - "++show t++" := "++show s++"\n") "" (rewrites ctx) ++
+    "declarations:\n" ++ foldl (\str (e,t) -> str++" - "++show e++" : " ++show t++"\n") "" (declarations ctx)
+
+-- TypeVar
 
 data TypeVar     = Bound    Type
                  | FreeName Name
@@ -59,9 +77,13 @@ data TypeVar     = Bound    Type
                  | FreeAppl TypeVar TypeVar
                  | FreeProd Name    TypeVar
                  | FreeCons TypeVar Expr
-                 deriving (Show)
 
--- syntactical equality
+instance Show TypeVar where
+  show (Bound t)    = show t
+  show (FreeName n) = show n
+
+------------------------------------------------------------------------------------------------------------------------------
+-- syntactic equality
 
 syneqTypeVar :: TypeVar -> TypeVar -> Bool
 syneqTypeVar a b = case (a, b) of
@@ -72,28 +94,29 @@ syneqTypeVar a b = case (a, b) of
   (FreeCons t e, FreeCons s f) -> syneqTypeVar t s && eqExpr e f -- uses reduceExpr
   (_, _)                       -> False
 
+
+------------------------------------------------------------------------------------------------------------------------------
 -- accessors and mutators
 
-
 -- create new FreeName of the form «t#» where "#" is a natural.
-newFreeName :: Judger TypeVar
+newFreeName :: Check TypeVar
 newFreeName = do
   i <- gets freeTypeVarCounter
   modify $ \ctx -> ctx { freeTypeVarCounter=i+1 } -- increment
-  return . FreeName . BS.concat $ [BSC.pack "t", BSC.pack . show $ i]
+  return . FreeName . name $ "t"++show i
 
 -- declare: « e:t »
-declare :: Expr -> TypeVar -> Judger ()
+declare :: Expr -> TypeVar -> Check ()
 declare e t = modify $ \ctx -> ctx { declarations=(e,t):declarations ctx }
 
 -- rewrite: « a:=t »
 -- requires « a » is free
-rewrite :: TypeVar -> TypeVar -> Judger ()
+rewrite :: TypeVar -> TypeVar -> Check ()
 rewrite (Bound s) t = fail $ "attempted to rewrite bound type: " ++ show s ++ ":=" ++ show t
 rewrite a         t = modify $ \ctx -> ctx { rewrites=(a,t):rewrites ctx }
 
 -- apply any rewrites to the given typevar
-getRewritten :: TypeVar -> Judger TypeVar
+getRewritten :: TypeVar -> Check TypeVar
 getRewritten (Bound t) = return (Bound t)
 getRewritten a =
   -- scan for first matching rewrite
@@ -108,7 +131,7 @@ getRewritten a =
 
 -- gets simplified type var declared for the given expression
 -- if there is none in the current context, errors
-getDeclaration :: Expr -> Judger TypeVar
+getDeclaration :: Expr -> Check TypeVar
 getDeclaration e =
   -- scan for first matching declaration
   let helper (Just a) _     = return $ Just a  -- already found match
@@ -122,7 +145,7 @@ getDeclaration e =
       Nothing -> fail $ "no declaration found for expr: " ++ show e
 
 -- attempts to unify types; may add rewrites to context
-unify :: TypeVar -> TypeVar -> Judger ()
+unify :: TypeVar -> TypeVar -> Check ()
 unify tv1 tv2 =
   let unableToUnify = fail $ "unable to unify bound types: " ++ show tv1 ++ " , " ++ show tv2 in
   let symmetricCase = unify tv2 tv1 in
@@ -156,19 +179,25 @@ unify tv1 tv2 =
 -- Type Checking
 ------------------------------------------------------------------------------------------------------------------------------
 
-judgePrgm :: Prgm -> Judger ()
-judgePrgm (Prgm stmts) =
-  foldl (>>) (return ()) (map judgeStmt stmts)
+------------------------------------------------------------------------------------------------------------------------------
+-- check Prgm
 
-judgeStmt :: Stmt -> Judger ()
-judgeStmt stmt =
+checkPrgm :: Prgm -> Check ()
+checkPrgm (Prgm stmts) =
+  foldl (>>) (return ()) (map checkStmt stmts)
+
+------------------------------------------------------------------------------------------------------------------------------
+-- check Stmt
+
+checkStmt :: Stmt -> Check ()
+checkStmt stmt =
   case stmt of
     Module n stmts ->
       error "TODO: handle namespaces for definitions via modules"
 
     Definition n t e -> do
       declare (ExprName n) (Bound t)      -- => n:t
-      judgeExpr e; s <- getDeclaration e  -- e:s
+      checkExpr e; s <- getDeclaration e  -- e:s
       unify (Bound t) s                   -- t ~ s
 
     Signature n t ->
@@ -177,8 +206,11 @@ judgeStmt stmt =
     Assumption n t ->
       declare (ExprName n) (Bound t)      -- => n:t
 
-judgeExpr :: Expr -> Judger ()
-judgeExpr = \case
+------------------------------------------------------------------------------------------------------------------------------
+-- check Expr
+
+checkExpr :: Expr -> Check ()
+checkExpr = \case
   ExprName n -> do
     a <- newFreeName        -- +a
     declare (ExprName n) a  -- => n:a
@@ -187,20 +219,20 @@ judgeExpr = \case
     declare (ExprPrim p) (Bound . TypePrim $ getPrimExprType p) -- p:pT
 
   ExprFunc n e -> do
-    judgeExpr e; b <- getDeclaration e                        -- e:b
-    judgeExpr (ExprName n); a <- getDeclaration (ExprName n)  -- n:a
+    checkExpr e; b <- getDeclaration e                        -- e:b
+    checkExpr (ExprName n); a <- getDeclaration (ExprName n)  -- n:a
     declare (ExprFunc n e) (FreeFunc a b)                     -- => (fun n => e):a->b
 
   ExprAppl e f -> do
-    judgeExpr e; c <- getDeclaration e  -- e:c
-    judgeExpr f; a <- getDeclaration f  -- f:a
+    checkExpr e; c <- getDeclaration e  -- e:c
+    checkExpr f; a <- getDeclaration f  -- f:a
     b <- newFreeName                    -- => +b
     unify c (FreeFunc a b)              -- => c ~ (a->b)
     declare (ExprAppl e f) b            -- => (e f):b
 
   ExprRecu n m e -> do
-    judgeExpr e; b <- getDeclaration e                        -- e:b
-    judgeExpr (ExprName m); a <- getDeclaration (ExprName m)  -- n:c
-    judgeExpr (ExprName n); c <- getDeclaration (ExprName n)  -- m:a
+    checkExpr e; b <- getDeclaration e                        -- e:b
+    checkExpr (ExprName m); a <- getDeclaration (ExprName m)  -- n:c
+    checkExpr (ExprName n); c <- getDeclaration (ExprName n)  -- m:a
     unify b c                                                 -- => b ~ c
     declare (ExprRecu n m e) (FreeFunc a b)                   -- (rec n of m => e):a->b

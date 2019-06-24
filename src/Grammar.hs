@@ -5,12 +5,13 @@ module Grammar
 , Stmt(..)
 , Expr(..), ExprPrim(..)
 , Type(..), TypePrim(..)
-, Name
+, Name(..), name
 , syneqName, syneqExpr, syneqType
 , getPrimExprType
 ) where
 
 import           Data.ByteString          as BS
+import           Data.ByteString.Char8    as BSC
 import           Data.ByteString.Internal
 
 ------------------------------------------------------------------------------------------------------------------------------
@@ -37,14 +38,26 @@ data Expr =
   | ExprFunc Name Expr      -- (fun n -> e)
   | ExprRecu Name Name Expr -- (rec n of m -> e)
   | ExprAppl Expr Expr      -- (e f)
-  deriving (Show)
+  deriving (Eq)
+
+instance Show Expr where
+  show (ExprName n)     = show n
+  show (ExprPrim p)     = show p
+  show (ExprFunc n e)   = "(fun "++show n++" => "++show e++")"
+  show (ExprRecu n m e) = "(rec "++show n++" of "++show m++" => "++show e++")"
+  show (ExprAppl e f)   = "("++show e++" "++show f++")"
 
 -- p
 data ExprPrim =
     ExprPrimInt Int
   | ExprPrimBool Bool
   | ExprPrimUnit
-  deriving (Show)
+  deriving (Eq)
+
+instance Show ExprPrim where
+  show (ExprPrimInt i)  = show i
+  show (ExprPrimBool b) = show b
+  show ExprPrimUnit     = "()"
 
 -- t | s | ...
 data Type =
@@ -54,7 +67,14 @@ data Type =
   | TypeAppl Type Type -- (t s)
   | TypeProd Name Type -- (forall n, t)
   | TypeCons Type Expr -- (t e)
-  deriving (Show)
+  deriving (Eq)
+
+instance Show Type where
+  show (TypeName n)   = show n
+  show (TypePrim p)   = show p
+  show (TypeFunc t s) = show t++" -> "++show s
+  show (TypeAppl t s) = "("++show t++" "++show s++")"
+  show (TypeCons t e) = "("++show t++" "++show e++")"
 
 -- P
 data TypePrim =
@@ -62,13 +82,23 @@ data TypePrim =
   | TypePrimBool
   | TypePrimUnit
   | TypePrimType
-  deriving (Show)
+  deriving (Eq)
+
+instance Show TypePrim where
+  show TypePrimInt  = "int"
+  show TypePrimBool = "bool"
+  show TypePrimUnit = "unit"
+  show TypePrimType = "type"
 
 -- n
-type Name =
-    ByteString
+newtype Name = Name ByteString
+  deriving (Eq)
 
---
+instance Show Name where
+  show (Name bs) = BSC.unpack bs
+
+name :: String -> Name
+name = Name . BSC.pack
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Utilities
@@ -77,10 +107,10 @@ type Name =
 -- syntactical equality
 
 syneqExpr :: Expr -> Expr -> Bool
-syneqExpr e f = error "unimplemented"
+syneqExpr = (==)
 
 syneqType :: Type -> Type -> Bool
-syneqType t s = error "unimplemented"
+syneqType = (==)
 
 syneqName :: Name -> Name -> Bool
 syneqName = (==)
