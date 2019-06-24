@@ -1,8 +1,9 @@
-# Functive
+# functive
 
 A simple modular extendible statically-typed symbolic programming language with dependent types.
+Implemented in Haskell.
 
-## Concepts
+## concepts
 
 __simple__:
 - clean and simple "low-level" functional programming language
@@ -37,23 +38,36 @@ __dependent types__:
 
 ## organization
 
-| directory        | description |
-| ---              | --- |
-| `design/`        | reader-friendly design details. |
-| `source/`        | ocaml sourcecode. |
-| `documentation/` | ocamldoc-generated documentation. |
-| `examples/`      | examples of __Functive__ in practice |
+| directory   | description |
+| ---         | --- |
+| `src/`      | haskell source-code. |
+| `app/`      | haskell executable source-code. |
+| `test/`     | haskell unit tests. |
+| `doc/`      | haskell documentation. |
+| `design/`   | reader-friendly design details (LaTex/PDF) |
+| `examples/` | example _functive_ prorams. |
 
 ## building
 
+Using [stack](https://docs.haskellstack.org/en/stable/README/).
+
 ```sh
-  cd source/
-  make build
+  stack build
 ```
 
-## running
+## executing
 
-TODO
+Run unit tests with
+
+```sh
+  stack test
+```
+
+Run executable (`app/Main.hs`) with
+
+```sh
+  stack exec functive-hs-exe
+```
 
 ## tutorial
 
