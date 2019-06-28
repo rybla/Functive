@@ -1,4 +1,4 @@
-# functive
+# Functive
 
 A simple modular extendible statically-typed symbolic programming language with dependent types.
 Implemented in Haskell.
