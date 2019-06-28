@@ -22,30 +22,29 @@ import           Reducing
 
 type Check a = StateT TypeContext CheckStatus a
 
-data CheckStatus a = Consistent a | Inconsistent String
+data CheckStatus a = Ok a | Fail String
 
 instance Functor CheckStatus where
-  fmap f ja = case ja of { Consistent a -> Consistent (f a) ; Inconsistent msg -> Inconsistent msg }
+  fmap f ja = case ja of { Ok a -> Ok (f a) ; Fail msg -> Fail msg }
 
 instance Applicative CheckStatus where
-  pure = Consistent
-  jf <*> ja = case jf of { Consistent f -> fmap f ja ; Inconsistent msg -> Inconsistent msg }
+  pure = Ok
+  jf <*> ja = case jf of { Ok f -> fmap f ja ; Fail msg -> Fail msg }
 
 instance Monad CheckStatus where
-  ja >>= a_jb = case ja of { Consistent a -> a_jb a ; Inconsistent msg -> Inconsistent msg }
+  ja >>= a_jb = case ja of { Ok a -> a_jb a ; Fail msg -> Fail msg }
 
 instance Show a => Show (CheckStatus a) where
-  show (Consistent a)     = "Consistent " ++ show a
-  show (Inconsistent msg) = "Inconsistent: " ++ msg
+  show (Ok a)     = "Ok " ++ show a
+  show (Fail msg) = "Fail: " ++ msg
+
+-- handles check in temporary sub-state
+subCheck :: Check a -> Check a
+subCheck check = do{ saved_state <- get ; a <- check ; put saved_state ; return a }
 
 ------------------------------------------------------------------------------------------------------------------------------
--- Type TypeContext
+-- Type Context
 ------------------------------------------------------------------------------------------------------------------------------
-
-------------------------------------------------------------------------------------------------------------------------------
--- types
-
--- TypeContext
 
 data TypeContext = TypeContext
   { freeTypeVarCounter :: Int
@@ -58,6 +57,13 @@ type Scope       = ByteString
 type Declaration = (Expr, TypeVar)
 type Rewrite     = (TypeVar, TypeVar)
 
+instance Show TypeContext where
+  show ctx =
+    "rewrites:\n"     ++ foldl (\str (t,s) -> str++" - "++show t++" := "++show s++"\n") "" (rewrites ctx) ++
+    "declarations:\n" ++ foldl (\str (e,t) -> str++" - "++show e++" : " ++show t++"\n") "" (declarations ctx)
+
+-- utilities
+
 emptyTypeContext :: TypeContext
 emptyTypeContext = TypeContext
   { freeTypeVarCounter = 0
@@ -65,12 +71,9 @@ emptyTypeContext = TypeContext
   , declarations       = []
   , children           = [] }
 
-instance Show TypeContext where
-  show ctx =
-    "rewrites:\n"     ++ foldl (\str (t,s) -> str++" - "++show t++" := "++show s++"\n") "" (rewrites ctx) ++
-    "declarations:\n" ++ foldl (\str (e,t) -> str++" - "++show e++" : " ++show t++"\n") "" (declarations ctx)
-
--- TypeVar
+------------------------------------------------------------------------------------------------------------------------------
+-- Type Variable
+------------------------------------------------------------------------------------------------------------------------------
 
 data TypeVar     = Bound    Type
                  | FreeName Name
@@ -83,7 +86,6 @@ instance Show TypeVar where
   show (Bound t)    = show t
   show (FreeName n) = show n
 
-------------------------------------------------------------------------------------------------------------------------------
 -- syntactic equality
 
 syneqTypeVar :: TypeVar -> TypeVar -> Bool
@@ -95,9 +97,7 @@ syneqTypeVar a b = case (a, b) of
   (FreeCons t e, FreeCons s f) -> syneqTypeVar t s && eqExpr e f -- uses reduceExpr
   (_, _)                       -> False
 
-
-------------------------------------------------------------------------------------------------------------------------------
--- accessors and mutators
+-- utilities
 
 -- create new FreeName of the form «t#» where "#" is a natural.
 newFreeName :: Check TypeVar
@@ -105,6 +105,13 @@ newFreeName = do
   i <- gets freeTypeVarCounter
   modify $ \ctx -> ctx { freeTypeVarCounter=i+1 } -- increment
   return . FreeName . name $ "t"++show i
+
+------------------------------------------------------------------------------------------------------------------------------
+-- Type Unification
+------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------
+-- declaring and rewriting
 
 -- declare: « e:t »
 declare :: Expr -> TypeVar -> Check ()
@@ -145,6 +152,9 @@ getDeclaration e =
       Just t  -> return t
       Nothing -> fail $ "no declaration found for expr: " ++ show e
 
+------------------------------------------------------------------------------------------------------------------------------
+-- unification
+
 -- attempts to unify types; may add rewrites to context
 unify :: TypeVar -> TypeVar -> Check ()
 unify tv1 tv2 =
@@ -174,7 +184,6 @@ unify tv1 tv2 =
 
     -- no other pairs can unify
     (_,  _) -> unableToUnify
-
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Type Checking
@@ -210,27 +219,35 @@ checkStmt stmt =
 checkExpr :: Expr -> Check ()
 checkExpr = \case
   ExprName n -> do
-    a <- newFreeName        -- +a
-    declare (ExprName n) a  -- => n:a
+    let ne = ExprName n
+    a <- newFreeName                                                        -- +a
+    declare ne a                                                            -- => n:a
 
-  ExprPrim p ->
-    declare (ExprPrim p) (Bound . TypePrim $ getPrimExprType p) -- p:pT
+  ExprPrim p -> do
+    let pT = Bound . TypePrim $ getPrimExprType p
+    declare (ExprPrim p) pT                                                 -- p:pT
 
   ExprFunc n e -> do
-    checkExpr e; b <- getDeclaration e                        -- e:b
-    checkExpr (ExprName n); a <- getDeclaration (ExprName n)  -- n:a
-    declare (ExprFunc n e) (FreeFunc a b)                     -- => (fun n => e):a->b
-
-  ExprAppl e f -> do
-    checkExpr e; c <- getDeclaration e  -- e:c
-    checkExpr f; a <- getDeclaration f  -- f:a
-    b <- newFreeName                    -- => +b
-    unify c (FreeFunc a b)              -- => c ~ (a->b)
-    declare (ExprAppl e f) b            -- => (e f):b
+    let ne = ExprName n
+    (a, b) <- subCheck $ do                                                 -- open local context
+      { checkExpr e; b <- getDeclaration e                                      -- e:b
+      ; checkExpr ne; a <- getDeclaration ne                                    -- n:a
+      ; return (a, b) }                                                     -- close local context
+    declare (ExprFunc n e) (FreeFunc a b)                                   -- => (fun n => e):a->b
 
   ExprRecu n m e -> do
-    checkExpr e; b <- getDeclaration e                        -- e:b
-    checkExpr (ExprName m); a <- getDeclaration (ExprName m)  -- n:c
-    checkExpr (ExprName n); c <- getDeclaration (ExprName n)  -- m:a
-    unify b c                                                 -- => b ~ c
-    declare (ExprRecu n m e) (FreeFunc a b)                   -- (rec n of m => e):a->b
+    let (ne, me) = (ExprName n, ExprName m)
+    (a, b, c) <- subCheck $ do                                              -- open local context
+      { checkExpr e; b <- getDeclaration e                                      -- e:b
+      ; checkExpr me; a <- getDeclaration me                                    -- n:c
+      ; checkExpr ne; c <- getDeclaration ne                                    -- m:a
+      ; return (a, b, c) }                                                  -- close local context
+    unify b c                                                               -- => b ~ c
+    declare (ExprRecu n m e) (FreeFunc a b)                                 -- (rec n of m => e):a->b
+
+  ExprAppl e f -> do
+    checkExpr e; c <- getDeclaration e                                      -- e:c
+    checkExpr f; a <- getDeclaration f                                      -- f:a
+    b <- newFreeName                                                        -- => +b
+    unify c (FreeFunc a b)                                                  -- => c ~ (a->b)
+    declare (ExprAppl e f) b                                                -- => (e f):b
