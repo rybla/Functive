@@ -7,18 +7,15 @@ f = ExprName $ name "f"
 
 t = TypeName $ name "t"
 n = name "n"
+m = name "m"
 
-prgm = Prgm
-  [ Definition n t (ExprAppl e f) ]
-
-
+prgm = Prgm [ Definition n t (ExprAppl e f)
+            , Definition m t e ]
 
 main :: IO ()
 main = do
   putStrLn "\n==================================================================================================\n"
 
-  case runStateT (checkPrgm prgm) emptyTypeContext of
-    Consistent ((), ctx) -> print ctx
-    Inconsistent msg     -> putStrLn msg
+  runStateT (checkPrgm prgm) emptyTypeContext
 
   putStrLn "\n=================================================================================================="
