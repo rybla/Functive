@@ -8,8 +8,7 @@
   $\overline{\v{s}}$
 \\
 \v{s} &$::=$&
-    \k{Begin Module} \ \v{n} \ \k{.} \ $\overline{s}$ \ \k{End Module} \ \v{n} \ \k{.} \\ &&
-\|  \k{Definition} \ \v{n} \ \k{:} \ t \ \k{:=} \ \v{e} \ \k{.} \\ &&
+    \k{Definition} \ \v{n} \ \k{:} \ t \ \k{:=} \ \v{e} \ \k{.} \\ &&
 \|  \k{Signature} \ \v{n} \ \k{:=} \ t \ \k{.}
 \|  \k{Assumption} \ \v{n} \ \k{:} \ t \ \k{.}
 \\
@@ -23,25 +22,6 @@
 \v{v} &$::=$&
     \v{primitive-value}
 \|  \v{n}
-\\
-\v{t} &$::=$&
-    \v{primitive-type}
-\|  \v{n}
-\|  \k{(} \ \v{t} \ \v{t} \ \k{)}
-\|  \k{(} \ \v{t} \ \v{e} \ \k{)} \\ &&
-\|  \k{(} \ \v{t} \ \k{\funarrow} \ \v{t} \ \k{)}
-\|  \k{(} \ \k{forall} \ \v{n} \ \k{:} \ \v{t} \ \k{,} \ \v{t} \ \k{)}
-\\
-\v{primitive-value} &$::=$&
-    $z \in \mathbb{Z}$
-\|  $b \in \{ \mathit{true}, \mathit{false} \}$
-\|  \k{()}
-\\
-\v{primitive-type} &$::=$&
-      \k{integer}
-  \|  \k{boolean}
-  \|  \k{unit}
-  \|  \k{type}
 \\
 \v{n} &$::=$&
       \v{string}

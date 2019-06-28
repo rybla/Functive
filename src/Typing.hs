@@ -12,6 +12,7 @@ import           Control.Monad.Trans.State as State
 import qualified Data.ByteString           as BS
 import qualified Data.ByteString.Char8     as BSC
 import           Data.ByteString.Internal
+
 import           Grammar
 import           Reducing
 
@@ -192,9 +193,6 @@ checkPrgm (Prgm stmts) =
 checkStmt :: Stmt -> Check ()
 checkStmt stmt =
   case stmt of
-    Module n stmts ->
-      error "TODO: handle namespaces for definitions via modules"
-
     Definition n t e -> do
       declare (ExprName n) (Bound t)      -- => n:t
       checkExpr e; s <- getDeclaration e  -- e:s

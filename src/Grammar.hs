@@ -19,14 +19,12 @@ import           Data.ByteString.Internal
 ------------------------------------------------------------------------------------------------------------------------------
 
 -- prgm
-newtype Prgm =
-    Prgm [Stmt]   -- [stmt]
+newtype Prgm = Prgm [Stmt]
   deriving (Show)
 
 -- stmt
 data Stmt =
-    Module     Name [Stmt]    -- Begin Module n . [stmt] End Module n .
-  | Definition Name Type Expr -- Definition n : t := e .
+    Definition Name Type Expr -- Definition n : t := e .
   | Signature  Name Type      -- Signature n = t .
   | Assumption Name Type      -- Assumption n : t .
   deriving (Show)
@@ -76,7 +74,7 @@ instance Show Type where
   show (TypeAppl t s) = "("++show t++" "++show s++")"
   show (TypeCons t e) = "("++show t++" "++show e++")"
 
--- P
+-- pT
 data TypePrim =
     TypePrimInt
   | TypePrimBool

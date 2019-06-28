@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.9)  22 JUN 2019 16:34
+This is pdfTeX, Version 3.14159265-2.6-1.40.20 (TeX Live 2019) (preloaded format=pdflatex 2019.5.9)  28 JUN 2019 14:26
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -436,11 +436,11 @@ LaTeX Font Info:    Font shape `T1/FiraMono-TOsF/regular/n' will be
 (Font)              scaled to size 9.0pt on input line 11.
 ) [2] (./functive-main.aux) ) 
 Here is how much of TeX's memory you used:
- 3062 strings out of 494060
- 42013 string characters out of 6163036
- 100100 words of memory out of 5000000
- 6700 multiletter control sequences out of 15000+600000
- 22350 words of font info for 61 fonts, out of 8000000 for 9000
+ 3057 strings out of 494060
+ 41959 string characters out of 6163036
+ 99100 words of memory out of 5000000
+ 6697 multiletter control sequences out of 15000+600000
+ 21306 words of font info for 58 fonts, out of 8000000 for 9000
  319 hyphenation exceptions out of 8191
  27i,13n,33p,226b,327s stack positions out of 5000i,500n,10000p,200000b,80000s
  </Users/henry/Library/texlive/2019basic/texmf-var
@@ -454,17 +454,13 @@ ts/pk/ljfour/jknappen/ec/ecbx1440.600pk> </Users/henry/Library/texlive/2019basi
 c/texmf-var/fonts/pk/ljfour/jknappen/ec/ecrm1200.600pk>{/usr/local/texlive/2019
 basic/texmf-dist/fonts/enc/dvips/fira/fir_d4q673.enc}</usr/local/texlive/2019ba
 sic/texmf-dist/fonts/type1/public/fira/FiraMono-Regular.pfb></usr/local/texlive
-/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/local/tex
-live/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/
-texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/lo
-cal/texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr
-/local/texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb><
-/usr/local/texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/symbols/msb
-m10.pfb>
-Output written on functive-main.pdf (2 pages, 104739 bytes).
+/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/local/texl
+ive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/local/
+texlive/2019basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb>
+Output written on functive-main.pdf (2 pages, 83053 bytes).
 PDF statistics:
- 154 PDF objects out of 1000 (max. 8388607)
- 56 compressed objects within 1 object stream
+ 141 PDF objects out of 1000 (max. 8388607)
+ 47 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 
