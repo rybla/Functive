@@ -35,8 +35,7 @@ subCheck check = do{ saved_state <- get ; a <- check ; put saved_state ; return 
 data TypeContext = TypeContext
   { freeTypeVarCounter :: Int
   , declarations       :: [Declaration]
-  , rewrites           :: [Rewrite]
-  , children           :: [(Scope, TypeContext)] }
+  , rewrites           :: [Rewrite] }
 type Scope       = ByteString
 data Rewrite = Rewrite Name TypeVar
 data Declaration = Declaration Expr TypeVar
@@ -57,9 +56,8 @@ instance Show Rewrite where
 emptyTypeContext :: TypeContext
 emptyTypeContext = TypeContext
   { freeTypeVarCounter = 0
-  , rewrites           = []
   , declarations       = []
-  , children           = [] }
+  , rewrites           = [] }
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Type Variable

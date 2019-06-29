@@ -14,6 +14,8 @@ import           Data.ByteString          as BS
 import           Data.ByteString.Char8    as BSC
 import           Data.ByteString.Internal
 
+import           Nat
+
 ------------------------------------------------------------------------------------------------------------------------------
 -- Types
 ------------------------------------------------------------------------------------------------------------------------------
@@ -47,13 +49,13 @@ instance Show Expr where
 
 -- p
 data ExprPrim =
-    ExprPrimInt Int
+    ExprPrimNat  Nat
   | ExprPrimBool Bool
   | ExprPrimUnit
   deriving (Eq)
 
 instance Show ExprPrim where
-  show (ExprPrimInt i)  = show i
+  show (ExprPrimNat  n) = show n
   show (ExprPrimBool b) = show b
   show ExprPrimUnit     = "()"
 
@@ -76,14 +78,14 @@ instance Show Type where
 
 -- pT
 data TypePrim =
-    TypePrimInt
+    TypePrimNat
   | TypePrimBool
   | TypePrimUnit
   | TypePrimType
   deriving (Eq)
 
 instance Show TypePrim where
-  show TypePrimInt  = "int"
+  show TypePrimNat  = "Nat"
   show TypePrimBool = "bool"
   show TypePrimUnit = "unit"
   show TypePrimType = "type"
@@ -117,6 +119,6 @@ syneqName = (==)
 
 getPrimExprType :: ExprPrim -> TypePrim
 getPrimExprType = \case
-  ExprPrimInt  _ -> TypePrimInt
+  ExprPrimNat  _ -> TypePrimNat
   ExprPrimBool _ -> TypePrimBool
   ExprPrimUnit   -> TypePrimUnit

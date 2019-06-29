@@ -1,5 +1,6 @@
 import           Control.Monad.Trans.State
 import           Grammar
+import           Nat
 import           Typing
 
 x = ExprName $ name "x"
@@ -14,10 +15,10 @@ prgm = Prgm [ Definition n t
               $ ExprAppl (ExprFunc (name "x") (ExprAppl f x)) x
             ]
 
+header = "\n\n==================================================================================================\n\n"
+
 main :: IO ()
 main = do
-  putStrLn "\n==================================================================================================\n"
-
-  runStateT (checkPrgm prgm) emptyTypeContext
-
-  putStrLn "\n=================================================================================================="
+  putStr header
+  -- runStateT (checkPrgm prgm) emptyTypeContext
+  putStr header
