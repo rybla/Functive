@@ -1,11 +1,11 @@
 module Debug
-( debug
+( debug, inform
 ) where
 
 import           Control.Monad
 
-finalDEBUG :: Bool
-finalDEBUG = True
+makeLogger :: Bool -> String -> (String -> IO ())
+makeLogger toggle header msg = when toggle $ putStrLn $ "["++header++"] "++msg
 
-debug :: String -> IO ()
-debug str = when finalDEBUG $ putStrLn $ "[$] "++str
+debug = makeLogger True "$"
+inform = makeLogger True ">"

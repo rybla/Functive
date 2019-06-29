@@ -34,12 +34,12 @@ subCheck check = do{ saved_state <- get ; a <- check ; put saved_state ; return 
 
 data TypeContext = TypeContext
   { freeTypeVarCounter :: Int
-  , rewrites           :: [Rewrite]
   , declarations       :: [Declaration]
+  , rewrites           :: [Rewrite]
   , children           :: [(Scope, TypeContext)] }
 type Scope       = ByteString
-data Declaration = Declaration Expr TypeVar
 data Rewrite = Rewrite Name TypeVar
+data Declaration = Declaration Expr TypeVar
 
 instance Show TypeContext where
   show ctx =
@@ -98,69 +98,50 @@ newFreeName :: Check TypeVar
 newFreeName = do
   i <- gets freeTypeVarCounter
   modify $ \ctx -> ctx { freeTypeVarCounter=i+1 } -- increment
-  lift . debug $ "+ "++show (FreeName . name $ "t"++show i)
+  lift.inform $ "=> + "++show (FreeName . name $ "t"++show i)
   return . FreeName . name $ "t"++show i
 
-freeNamesOf :: TypeVar -> Check [Name]
-freeNamesOf = \case
+getFreeNames :: TypeVar -> Check [Name]
+getFreeNames = \case
+  Bound    _ -> return []
   FreeName n -> return [n]
-  FreeFunc a b -> do { fa <- freeNamesOf a ; fb <- freeNamesOf b ; return $ fa ++ fb }
-  FreeAppl a b -> do { fa <- freeNamesOf a ; fb <- freeNamesOf b ; return $ fa ++ fb }
-  FreeProd n a -> freeNamesOf a
-  FreeCons a e -> freeNamesOf a
+  FreeFunc a b -> do { fa <- getFreeNames a ; fb <- getFreeNames b ; return $ fa ++ fb }
+  FreeAppl a b -> do { fa <- getFreeNames a ; fb <- getFreeNames b ; return $ fa ++ fb }
+  FreeProd n a -> getFreeNames a
+  FreeCons a e -> getFreeNames a
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Type Unification
 ------------------------------------------------------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------------------------------------------------------
--- reconciliation
+-- rewriting
 
--- goes through declarations and finds matching expressions, then unifies their types
-reconcile :: Check ()
-reconcile =
-  let f :: [Declaration] -> Declaration -> Check ()
-      f ds (Declaration e t) = foldl (>>) (return ()) $
-                                  map (\(Declaration e' t') -> when (syneqExpr e e') $ unify t t')
-                                    ds
-  in do
-    ds <- gets declarations
-    foldl (>>) (return ()) $
-      map (\i -> f (drop (i+1) ds) (ds !! i))
-        [0..length ds - 1]
-
-------------------------------------------------------------------------------------------------------------------------------
--- declaring and rewriting
-
--- declare: « e : t » where
-declare :: Expr -> TypeVar -> Check ()
-declare e t = do
-  lift . debug . show $ Declaration e t
-  modify $ \ctx -> ctx { declarations=Declaration e t:declarations ctx }
-  reconcile
-
--- rewrite: « a <- t », where « a » is free
-rewrite :: Name -> TypeVar -> Check ()
-rewrite n t = do
-  lift . debug . show $ Rewrite n t
-  modify $ \ctx -> ctx { rewrites=Rewrite n t:rewrites ctx }
+-- => « a <- t », where « a » is free and « t » cannot contain « a »
+rewrite :: Rewrite -> Check ()
+rewrite r@(Rewrite n t) = do
+  lift.inform $ "=> "++show r
+  tv <- getRewritten (FreeName n)
+  t' <- getRewritten t
+  case tv of
+    fn@(FreeName n') -> do
+      let r' = Rewrite n' t'
+      fns <- getFreeNames t'
+      if length fns > 1 && n' `elem` fns
+        then fail $ "self-referencial rewrite: "++show r'
+        else modify $ \ctx -> ctx { rewrites=r':rewrites ctx }
 
 getRewrittenFreeName :: Name -> Check TypeVar
-getRewrittenFreeName n =
-  let recur ns n = -- keeps track of names used, preventing self-referencial rewrite
-        let helper (Just n') _ = Just n' -- already found a rewrite
-            helper Nothing (Rewrite n' s) = -- still looking for valid rewrite
-              if syneqName n n' -- matching names
-                then if n' `elem` ns  -- name has been used before?
-                  then Nothing  -- self-referencial rewrite
-                  else Just n'  -- valid rewrite
-                else Nothing
-        in do
-          rs <- gets rewrites
-          case foldl helper Nothing rs of
-            Nothing -> return $ FreeName n
-            Just n' -> recur (n:ns) n'
-  in recur [] n
+getRewrittenFreeName n = do
+  let helper (Just n') _ = Just n' -- already found a rewrite
+      helper Nothing (Rewrite n' s) = -- still looking for a rewrite
+        if syneqName n n'
+          then Nothing  -- self-referencial rewrite
+          else Just n'  -- valid rewrite
+  rs <- gets rewrites
+  case foldl helper Nothing rs of
+    Nothing -> return $ FreeName n
+    Just n' -> getRewrittenFreeName n'
 
 -- applies any rewrites in the given typevar
 getRewritten :: TypeVar -> Check TypeVar
@@ -172,6 +153,22 @@ getRewritten = \case
     FreeProd n a -> do { a' <- getRewritten a ; return $ FreeProd n a' }
     FreeCons a e -> do { a' <- getRewritten a ; return $ FreeCons a' e }
 
+------------------------------------------------------------------------------------------------------------------------------
+-- declaring
+
+-- => « e : t »
+declare :: Declaration -> Check ()
+declare d@(Declaration e t) = do
+  lift.inform $ "=> "++show d
+  ds <- gets declarations
+  let f (Declaration e' t') hasUnified = -- unify with the types of any previous declarations of « e »
+        if syneqExpr e e'
+          then unify t t' >> return True
+          else return hasUnified
+  hasUnified <- foldl (>>=) (return False) $ map f ds -- add new declaration if « e » has already been declared
+
+  unless hasUnified $ modify $ \ctx -> ctx { declarations=d:ds }
+
 -- gets simplified type var declared for the given expression
 -- if there is none in the current context, errors
 getDeclaration :: Expr -> Check TypeVar
@@ -179,7 +176,8 @@ getDeclaration e =
   -- scan for first matching declaration
   let helper (Just a) _                 = return $ Just a  -- already found match
       helper Nothing  (Declaration f t) = if syneqExpr e f -- check for match
-        then Just <$> getRewritten t else return Nothing
+                                            then Just <$> getRewritten t
+                                            else return Nothing
   in do
     ds <- gets declarations
     mb_t <- foldl (\jma (Declaration f t) -> do { ma <- jma ; helper ma (Declaration f t) }) (return Nothing) ds
@@ -192,27 +190,36 @@ getDeclaration e =
 
 -- attempts to unify types; may add rewrites to context
 unify :: TypeVar -> TypeVar -> Check ()
-unify tv1 tv2 =
-  (lift . debug $ show tv1++" <-> "++show tv2) >>
-  let unableToUnify = fail $ "unable to unify bound types: " ++ show tv1 ++ " , " ++ show tv2 in
-  let symmetric = unify tv2 tv1 in
+unify tv1 tv2 = do
+  lift.inform $ show tv1++" <~> "++show tv2
+  let unableToUnify = fail $ "unable to unify bound types: " ++ show tv1 ++ " , " ++ show tv2
+  let symmetric = unify tv2 tv1
   case (tv1, tv2) of
     -- Bound on left
-    (Bound t,              FreeName n  )  -> rewrite n (Bound t)
+    (Bound t,              FreeName n  )  -> rewrite $ Rewrite n (Bound t)
     (Bound t,              Bound s     )  -> unless (syneqType t s) unableToUnify
-    (Bound (TypeFunc t s), FreeFunc a b)  -> do { unify (Bound t) a ; unify (Bound s) b }
-    (Bound (TypeAppl t s), FreeAppl a b)  -> do { unify (Bound t) a ; unify (Bound s) b }
-    (Bound (TypeProd n t), FreeProd m a)  -> do { nT <- getDeclaration (ExprName n) ; mT <- getDeclaration (ExprName m)
+    (Bound (TypeFunc t s), FreeFunc a b)  -> do { unify (Bound t) a
+                                                ; unify (Bound s) b }
+    (Bound (TypeAppl t s), FreeAppl a b)  -> do { unify (Bound t) a
+                                                ; unify (Bound s) b }
+    (Bound (TypeProd n t), FreeProd m a)  -> do { nT <- getDeclaration (ExprName n)
+                                                ; mT <- getDeclaration (ExprName m)
                                                 ; unify nT mT
                                                 ; unify (Bound t) a }
     (Bound (TypeCons t e), FreeCons a f)  -> do { unify (Bound t) a
-                                                ; eT <- getDeclaration e ; fT <- getDeclaration f ; unify eT fT }
+                                                ; eT <- getDeclaration e
+                                                ; fT <- getDeclaration f
+                                                ; unify eT fT }
     -- Free on left
-    (FreeName n,           a           )  -> rewrite n a
-    (FreeFunc a b,         FreeFunc c d)  -> do { unify a c ; unify b d }
-    (FreeAppl a b,         FreeAppl c d)  -> do { unify a c ; unify b d }
+    (FreeName n,           a           )  -> rewrite $ Rewrite n a
+    (FreeFunc a b,         FreeFunc c d)  -> do { unify a c
+                                                ; unify b d }
+    (FreeAppl a b,         FreeAppl c d)  -> do { unify a c
+                                                ; unify b d }
     (FreeCons a e,         FreeCons b f)  -> do { unify a b
-                                                ; eT <- getDeclaration e ; fT <- getDeclaration f ; unify eT fT }
+                                                ; eT <- getDeclaration e
+                                                ; fT <- getDeclaration f
+                                                ; unify eT fT }
     -- symmetric cases
     (FreeCons a e, _) -> symmetric
     (FreeFunc a b, _) -> symmetric
@@ -229,7 +236,8 @@ unify tv1 tv2 =
 -- check Prgm
 
 checkPrgm :: Prgm -> Check ()
-checkPrgm (Prgm stmts) =
+checkPrgm prgm@(Prgm stmts) = do
+  lift.inform.show $ prgm
   foldl (>>) (return ()) (map checkStmt stmts)
 
 ------------------------------------------------------------------------------------------------------------------------------
@@ -237,54 +245,63 @@ checkPrgm (Prgm stmts) =
 
 checkStmt :: Stmt -> Check ()
 checkStmt stmt = do
-  lift . debug . show $ stmt
+  lift.inform.show $ stmt
   case stmt of
+
     Definition n t e -> do
-      declare (ExprName n) (Bound t)      -- => n:t (global)
-      checkExpr e; s <- getDeclaration e  -- e:s
-      unify (Bound t) s                   -- t <-> s
+      declare $ Declaration (ExprName n) (Bound t) -- => n:t (global)
+      checkExpr e; s <- getDeclaration e -- e:s
+      unify (Bound t) s -- t <~> s
 
     Signature n t ->
-      rewrite n (Bound t)                 -- => n <- t (global)
+      rewrite $ Rewrite n (Bound t) -- => n <- t (global)
 
     Assumption n t ->
-      declare (ExprName n) (Bound t)      -- => n:t (global)
+      declare $ Declaration (ExprName n) (Bound t) -- => n:t (global)
+
+  lift.inform $ "(Checked) "++show stmt
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- check Expr
 
 checkExpr :: Expr -> Check ()
-checkExpr expr = (lift . debug . show $ expr) >> case expr of
-  ExprName n -> do
-    let ne = ExprName n
-    a <- newFreeName -- +a
-    declare ne a     -- => n:a
+checkExpr expr = do
+  lift.inform.show $ expr
+  case expr of
 
-  ExprPrim p -> do
-    let pT = Bound . TypePrim $ getPrimExprType p
-    declare (ExprPrim p) pT                       -- p:pT
+    ExprName n -> do
+      let ne = ExprName n
+      a <- newFreeName -- + a
+      declare $ Declaration ne a -- => n : a
 
-  ExprFunc n e -> do
-    let ne = ExprName n
-    (a, b) <- subCheck $ do                       -- open local context
-      { checkExpr e; b <- getDeclaration e          -- e:b
-      ; checkExpr ne; a <- getDeclaration ne        -- n:a
-      ; return (a, b) }                           -- close local context
-    declare (ExprFunc n e) (FreeFunc a b)         -- => (fun n => e):a->b
+    ExprPrim p -> do
+      let pT = Bound . TypePrim $ getPrimExprType p
+      declare $ Declaration (ExprPrim p) pT -- p : pT
 
-  ExprRecu n m e -> do
-    let (ne, me) = (ExprName n, ExprName m)
-    (a, b, c) <- subCheck $ do                    -- open local context
-      { checkExpr e; b <- getDeclaration e          -- e:b
-      ; checkExpr me; a <- getDeclaration me        -- n:c
-      ; checkExpr ne; c <- getDeclaration ne      -- m:a
-      ; return (a, b, c) }                        -- close local context
-    unify b c                                     -- => b <-> c
-    declare (ExprRecu n m e) (FreeFunc a b)       -- (rec n of m => e):a->b
+    ExprFunc n e -> do
+      let ne = ExprName n
+      (a, b) <- subCheck $ do -- open local context
+        { checkExpr e; b <- getDeclaration e -- e : b
+        ; checkExpr ne; a <- getDeclaration ne -- n : a
+        ; return (a, b) } -- close local context
+      declare $ Declaration (ExprFunc n e) (FreeFunc a b) -- => (fun n => e) : (a -> b)
 
-  ExprAppl e f -> do
-    checkExpr e; c <- getDeclaration e            -- e:c
-    checkExpr f; a <- getDeclaration f            -- f:a
-    b <- newFreeName                              -- => +b
-    unify c (FreeFunc a b)                        -- => c <-> (a->b)
-    declare (ExprAppl e f) b                      -- => (e f):b
+    ExprRecu n m e -> do
+      let (ne, me) = (ExprName n, ExprName m)
+      (a, b, c) <- subCheck $ do -- open local context
+        { checkExpr e; b <- getDeclaration e -- e : b
+        ; checkExpr me; a <- getDeclaration me -- n : c
+        ; checkExpr ne; c <- getDeclaration ne -- m : a
+        ; return (a, b, c) } -- close local context
+      unify b c -- => b <~> c
+      declare $ Declaration (ExprRecu n m e) (FreeFunc a b) -- (rec n of m => e) : a -> b
+
+    ExprAppl e f -> do
+      checkExpr e; c <- getDeclaration e -- e : c
+      checkExpr f; a <- getDeclaration f -- f : a
+      b <- newFreeName -- => + b
+      unify c (FreeFunc a b) -- => c <~> (a -> b)
+      declare $ Declaration (ExprAppl e f) b -- => (e f) : b
+
+  t <- getDeclaration expr
+  lift.inform $ "(Checked) "++show expr++" : "++show t
