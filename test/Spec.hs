@@ -9,8 +9,7 @@ t = TypeName $ name "t"
 n = name "n"
 m = name "m"
 
-prgm = Prgm [ Definition n t (ExprAppl e f)
-            , Definition m t e ]
+prgm = Prgm [ Definition n t (ExprAppl e e) ]
 
 main :: IO ()
 main = do

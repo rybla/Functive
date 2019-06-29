@@ -9,23 +9,26 @@
 \\
 \v{s} &$::=$&
     \k{Definition} \ \v{n} \ \k{:} \ t \ \k{:=} \ \v{e} \ \k{.} \\ &&
-\|  \k{Signature} \ \v{n} \ \k{:=} \ t \ \k{.}
+\|  \k{Signature} \ \v{n} \ \k{:=} \ t \ \k{.} \\ &&
 \|  \k{Assumption} \ \v{n} \ \k{:} \ t \ \k{.}
 \\
 \v{e} &$::=$&
-    \v{v}
+    \v{n}
+\|  \v{primitive-value}
 \|  \k{(} \ \v{e}$\p$ \ \v{e} \ \k{)}
 \|  \k{(} \ \k{let} \ \v{n} \k{:=} \v{e} \ \k{in} \ \v{e} \ \k{)} \\ &&
 \|  \k{(} \ \k{fun} \ \v{n} \ \k{\maparrow} \ \v{e} \k{)}
 \|  \k{(} \ \k{rec} \ \v{n} \ \k{of} \ \v{n} \ \k{\maparrow} \ \v{e} \ \k{)}
 \\
-\v{v} &$::=$&
-    \v{primitive-value}
-\|  \v{n}
+\v{t} &$::=$&
+    \v{n}
+\|  \v{primitive-type}
+\|  \k{(} \ \v{t} \ \k{->} \ \v{t} \ \k{)}
+\|  \k{(} \ \v{t} \ \v{t} \ \k{)} \\ &&
+\|  \k{(} \ \k{forall} \ \v{n} \ \k{,} \ \v{t} \ \k{)}
 \\
 \v{n} &$::=$&
       \v{string}
-  \|  \v{n}.\v{string}
 \\
 \end{tabular}
 \end{spacing}
