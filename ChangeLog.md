@@ -1,5 +1,6 @@
 # Changelog for Functive
 
+Terminology:
 - _stable_: implemented in master branch
 - _unstable_: implemented in dev branch
 - _planned_: described and hopfully prototyped in a sub-dev branch
