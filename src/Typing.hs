@@ -1,9 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Typing
-( checkPrgm, checkExpr
-, TypeContext(..), emptyTypeContext
-) where
+module Typing where
 
 import           Control.Monad
 import           Control.Monad.Trans
@@ -269,10 +266,6 @@ checkExpr expr = do
       let ne = ExprName n
       a <- newFreeName -- + a
       declare $ Declaration ne a -- ==> n : a
-
-    ExprPrim p -> do
-      let pT = Bound . TypePrim $ getPrimExprType p
-      declare $ Declaration (ExprPrim p) pT -- p : pT
 
     ExprFunc n e -> do
       let ne = ExprName n

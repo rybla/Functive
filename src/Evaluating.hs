@@ -1,9 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Evaluating
-(
--- evaluateExpr, eqExpr
-) where
+module Evaluating where
 
 import           Control.Monad
 import           Control.Monad.Trans
@@ -41,25 +38,18 @@ instance Show Reduction where
 reduce :: Reduction -> Evaluation ()
 reduce r@(Reduction e e') = do
   rs <- gets reductions
-  let rs' = foldl
-              (\rs' (Reduction f f') -> if syneqExpr e f
-                                          then
-                                          else  )
-              [] rs
-
+  let rs' = foldl (\rs' (Reduction f f') -> if syneqExpr e f then r : rs' else (Reduction f f') : rs') [] rs
   modify $ \ctx -> ctx { reductions=r:reductions ctx }
 
 getReduced :: Expr -> Evaluation Expr
 getReduced e =
-  let recurse =
-    let f Nothing  r@(Reduction f f') = if syneqExpr e f then Just r else Nothing
-        f (Just r) _                  = Just r
-    in do
-      rs <- gets reductions
-      case foldl f Nothing rs of
-        Just (Reduction e e') -> getReduced e'
-        Nothing               -> return e
-  in
+  let f Nothing  r@(Reduction f f') = if syneqExpr e f then Just r else Nothing
+      f (Just r) _                  = Just r
+  in do
+    rs <- gets reductions
+    case foldl f Nothing rs of
+      Just (Reduction e e') -> getReduced e'
+      Nothing               -> return e
 
 
 ------------------------------------------------------------------------------------------------------------------------------
