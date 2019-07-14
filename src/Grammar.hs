@@ -2,26 +2,22 @@
 
 module Grammar where
 
-import           Data.ByteString          as BS
-import           Data.ByteString.Char8    as BSC
-import           Data.ByteString.Internal
-
 import           Nat
 
-------------------------------------------------------------------------------------------------------------------------------
--- Types
-------------------------------------------------------------------------------------------------------------------------------
+{-
+
+  # Grammar Types
+
+-}
 
 -- prgm
 newtype Prgm = Prgm [Stmt]
-  deriving (Show)
 
 -- stmt
 data Stmt =
     Definition Name Type Expr -- Definition n : t := e .
   | Signature  Name Type      -- Signature n = t .
   | Assumption Name Type      -- Assumption n : t .
-  deriving (Show)
 
 -- e | f | ...
 data Expr =
@@ -30,12 +26,6 @@ data Expr =
   | ExprRecu Name Name Expr -- (rec n of m -> e)
   | ExprAppl Expr Expr      -- (e f)
   deriving (Eq)
-
-instance Show Expr where
-  show (ExprName n)     = show n
-  show (ExprFunc n e)   = "(fun "++show n++" => "++show e++")"
-  show (ExprRecu n m e) = "(rec "++show n++" of "++show m++" => "++show e++")"
-  show (ExprAppl e f)   = "("++show e++" "++show f++")"
 
 -- t | s | ...
 data Type =
@@ -46,21 +36,9 @@ data Type =
   | TypeCons Type Expr -- (t e)
   deriving (Eq)
 
-instance Show Type where
-  show (TypeName n)   = show n
-  show (TypeFunc t s) = show t++" -> "++show s
-  show (TypeAppl t s) = "("++show t++" "++show s++")"
-  show (TypeCons t e) = "("++show t++" "++show e++")"
-
 -- n
-newtype Name = Name ByteString
+newtype Name = Name String
   deriving (Eq)
-
-instance Show Name where
-  show (Name bs) = BSC.unpack bs
-
-name :: String -> Name
-name = Name . BSC.pack
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- Utilities
@@ -76,3 +54,36 @@ syneqType = (==)
 
 syneqName :: Name -> Name -> Bool
 syneqName = (==)
+
+{-
+
+  ## Instances of Show
+
+-}
+
+instance Show Prgm where
+  show (Prgm stmts) = foldl (\str stmt -> str++show stmt++" ") "" stmts
+
+instance Show Stmt where
+  show = \case
+    Definition n t e -> "Definition "++show n++" : "++show t++" := "++show e++"."
+    Assumption n t   -> "Assumption "++show n++" : "++show t++"."
+    Signature  n t   -> "Signature "++show n++" := "++show t++"."
+
+instance Show Expr where
+  show = \case
+    ExprName n     -> show n
+    ExprFunc n e   -> "("++show n++" => "++show e++")"
+    ExprRecu n m e -> "(rec "++show n++" of "++show m++" => "++show e++")"
+    ExprAppl e f   -> "("++show e++" "++show f++")"
+
+instance Show Type where
+  show = \case
+    TypeName n   -> show n
+    TypeFunc t s -> "("++show t++" -> "++show s++")"
+    TypeAppl t s -> "("++show t++" "++show s++")"
+    TypeProd n t -> "(forall "++show n++", "++show t++")"
+    TypeCons t e -> "("++show t++" "++show e++")"
+
+instance Show Name where
+  show (Name n) = n
