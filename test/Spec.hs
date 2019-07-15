@@ -12,13 +12,16 @@ n = Name "n"
 m = Name "m"
 
 prgm = Prgm [ Definition n t
-              $ ExprAppl (ExprFunc (Name "x") (ExprAppl f x)) x
-            ]
+              $ ExprAppl (ExprFunc (Name "x") (ExprAppl f x)) x ]
 
-header = "\n\n==================================================================================================\n\n"
+-- expr = ExprAppl (ExprFunc (Name "x") (ExprAppl f x)) x
+expr = ExprAppl f x
+
+header = "\n\n"++replicate 98 '='++"\n\n"
 
 main :: IO ()
 main = do
   putStr header
-  runStateT (checkPrgm prgm) emptyTypeContext
+  -- runStateT (checkPrgm prgm) emptyTypeContext
+  runStateT (checkExpr expr) emptyTypeContext
   putStr header

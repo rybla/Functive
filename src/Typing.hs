@@ -291,10 +291,12 @@ checkStmt stmt = do
 checkExpr :: Expr -> Check ()
 checkExpr expr = do
   case expr of
+
     ExprName n -> do
       let ne = ExprName n
       a <- newFreeName -- + a
       declare $ Declaration ne a -- ==> n : a
+
     ExprFunc n e -> do
       let ne = ExprName n
       (a, b) <- subCheck $ do -- open local context
@@ -302,6 +304,7 @@ checkExpr expr = do
         ; checkExpr ne; a <- getDeclaration ne -- n : a
         ; return (a, b) } -- close local context
       declare $ Declaration (ExprFunc n e) (FreeFunc a b) -- ==> (fun n => e) : (a -> b)
+
     ExprRecu n m e -> do
       let (ne, me) = (ExprName n, ExprName m)
       (a, b, c) <- subCheck $ do -- open local context
@@ -314,11 +317,11 @@ checkExpr expr = do
       declare $ Declaration (ExprRecu n m e) (FreeFunc a b)
 
     ExprAppl e f -> do
-      checkExpr e; c <- getDeclaration e -- e : c
-      checkExpr f; a <- getDeclaration f -- f : a
-      b <- newFreeName -- ==> + b
-      unify c (FreeFunc a b) -- ==> c <~> (a -> b)
-      declare $ Declaration (ExprAppl e f) b -- ==> (e f) : b
+      checkExpr e; a <- getDeclaration e -- e : a
+      checkExpr f; b <- getDeclaration f -- f : b
+      c <- newFreeName -- ==> + c
+      unify a (FreeFunc b a)
+      declare $ Declaration (ExprAppl e f) c
 
   t <- getDeclaration expr
   informCheck "Checked" $ show expr
