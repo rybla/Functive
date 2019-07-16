@@ -17,8 +17,9 @@ newtype Prgm = Prgm [Stmt]
 data Stmt =
     Definition Name Type Expr -- Definition n : t := e .
   | Fixedpoint Name Type Expr -- Fixedpoint n : t := e .
-  | Signature  Name Type      -- Signature  n     := t .
+  | Signature  Name Type      -- Signature  n := t .
   | Assumption Name Type      -- Assumption n : t .
+  | Primitive  Name           -- Primitive  n .
 
 -- e | f | ...
 data Expr =
@@ -67,9 +68,11 @@ instance Show Prgm where
 
 instance Show Stmt where
   show = \case
-    Definition n t e -> "Definition "++show n++" : "++show t++" := "++show e++" ."
-    Assumption n t   -> "Assumption "++show n++" : "++show t++" ."
-    Signature  n t   -> "Signature "++show n++" := "++show t++" ."
+    Definition n t e -> "Definition "++show n++" : " ++show t++" := "++show e++" ."
+    Fixedpoint n t e -> "Fixedpoint "++show n++" : " ++show t++" := "++show e++" ."
+    Assumption n t   -> "Assumption "++show n++" : " ++show t++" ."
+    Signature  n t   -> "Signature " ++show n++" := "++show t++" ."
+    Primitive  n     -> "Primitive " ++show n++" ."
 
 instance Show Expr where
   show = \case

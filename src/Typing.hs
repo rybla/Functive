@@ -80,7 +80,7 @@ data TypeVar = Bound    Type
              | FreeCons TypeVar Expr
 
 instance Show TypeVar where
-  show = \case Bound t      -> show t
+  show = \case Bound t      -> "{"++show t++"}"
                FreeName n   -> show n
                FreeFunc a b -> "("++show a++" -> "++show b++")"
                FreeAppl a b -> "("++show a++" "++show b++")"
@@ -115,7 +115,7 @@ newFreeName = do
   i <- gets freeTypeVarCounter
   modify $ \ctx -> ctx { freeTypeVarCounter=i+1 } -- increment
   let fn = FreeName . Name $ "t"++show i
-  informCheck "New FreeName" $ show fn
+  informCheck "FreeName" $ show fn
   return fn
 
 getFreeNames :: TypeVar -> Check [Name]
@@ -154,22 +154,13 @@ rewrite r@(Rewrite n t) = do
         else modify $ \ctx -> ctx { rewrites=r:rewrites ctx }
     _ -> error $ "rewrite of non-FreeName: "++show r
 
-getRewrittenFreeName :: Name -> Check TypeVar
-getRewrittenFreeName n = do
-  rsMatches <- filter (\(Rewrite n' s) -> n == n') <$> gets rewrites
-  case rsMatches of
-    []             -> return $ FreeName n
-    [Rewrite n' s] -> getRewritten s
-    _              -> fail "multiple rewrites of same FreeName"
-
 -- applies any rewrites in the given typevar
 getRewritten :: TypeVar -> Check TypeVar
 getRewritten = \case
     Bound    b   -> return $ Bound b
     FreeName n   -> getRewrittenFreeName n
     FreeFunc a b -> do
-                    a' <- getRewritten a
-                    b' <- getRewritten b
+                    a' <- getRewritten a; b' <- getRewritten b
                     return $ FreeFunc a' b'
     FreeAppl a b -> do
                     a' <- getRewritten a
@@ -181,6 +172,32 @@ getRewritten = \case
     FreeCons a e -> do
                     a' <- getRewritten a
                     return $ FreeCons a' e
+
+getRewrittenFreeName :: Name -> Check TypeVar
+getRewrittenFreeName n = do
+  rsMatches <- filter (\(Rewrite n' s) -> n == n') <$> gets rewrites
+  case rsMatches of
+    []             -> return $ FreeName n
+    [Rewrite n' s] -> getRewritten s
+    _              -> fail "multiple rewrites of same FreeName"
+
+getRewrittenType :: Type -> Check TypeVar
+getRewrittenType = \case
+  TypeName n   -> getRewritten $ FreeName n
+  TypeFunc t s -> do
+                  t <- getRewrittenType t
+                  s <- getRewrittenType s
+                  return $ FreeFunc t s
+  TypeAppl t s -> do
+                  t <- getRewrittenType t
+                  s <- getRewrittenType s
+                  return $ FreeAppl t s
+  TypeProd n t -> do
+                  t <- getRewrittenType t
+                  return $ FreeProd n t
+  TypeCons t e -> do
+                  t <- getRewrittenType t
+                  return $ FreeCons t e
 
 {-
 
@@ -234,13 +251,13 @@ getDeclaration e =
 
 -- attempts to unify types; may add rewrites to context
 unify :: TypeVar -> TypeVar -> Check ()
-unify tv1_ tv2_ = do
-  tv1 <- getRewritten tv1_
-  tv2 <- getRewritten tv2_
-  informCheck "Unify" $ show tv1++" <~> "++show tv2
+unify tv1 tv2 = do
+  tv1 <- getRewritten tv1
+  tv2 <- getRewritten tv2
+  informCheck "Begin Unify" $ show tv1++" <~> "++show tv2
   let unableToUnify = fail $ "unable to unify bound types: "++show tv1++" , "++show tv2
   let symmetric = unify tv2 tv1
-  case (tv1, tv2) of
+  unless (syneqTypeVar tv1 tv2) $ case (tv1, tv2) of
     --
     -- Bound on left
     --
@@ -300,6 +317,18 @@ unify tv1_ tv2_ = do
     -- no other pairs can unify
     --
     (_,  _) -> unableToUnify
+  informCheck "End Unify" $ show tv1++" <~> "++show tv2
+
+{-
+
+  ## Primitive Types
+
+-}
+
+bindPrimitive :: Name -> Check ()
+bindPrimitive n = do
+  informCheck "Primitive" $ show n
+  rewrite $ Rewrite n (Bound $ TypeName n)
 
 {-
 
@@ -314,7 +343,10 @@ unify tv1_ tv2_ = do
 -}
 
 checkPrgm :: Prgm -> Check ()
-checkPrgm (Prgm stmts) = void $ traverse checkStmt stmts
+checkPrgm (Prgm stmts) = do
+                         informCheck "Begin Check" "Prgm ..."
+                         void $ traverse checkStmt stmts
+                         informCheck "End Check"   "Prgm ..."
 
 {-
 
@@ -322,25 +354,38 @@ checkPrgm (Prgm stmts) = void $ traverse checkStmt stmts
 
 -}
 
+
 checkStmt :: Stmt -> Check ()
 checkStmt stmt = do
+  informCheck "Begin Check" $ show stmt
   case stmt of
     -- Definition n : t := e .
     Definition n t e -> do
-                        checkExpr e; s <- getDeclaration e           -- e:s
-                        unify (Bound t) s                            -- t <~> s
-                        declare $ Declaration (ExprName n) (Bound t) -- ==> n:t
+                        t <- getRewrittenType t
+                        s <- subCheck $ do
+                               checkExpr e
+                               getDeclaration e              -- e:s
+                        unify t s                            -- t <~> s
+                        declare $ Declaration (ExprName n) t -- ==> n:t
     -- Fixedpoint n : t := e .
     Fixedpoint n t e -> do
-                        declare $ Declaration (ExprName n) (Bound t) -- => n:t
-                        checkExpr e; s <- getDeclaration e           -- e:s
-                        unify (Bound t) s                            -- t <~> s
+                        t <- getRewrittenType t
+                        declare $ Declaration (ExprName n) t -- => n:t
+                        s <- subCheck $ do
+                               checkExpr e
+                               getDeclaration e              -- e:s
+                        unify t s                            -- t <~> s
     -- Assumption n : t .
-    Assumption n t   -> declare $ Declaration (ExprName n) (Bound t) -- ==> n:t
+    Assumption n t   -> do
+                        t <- getRewrittenType t
+                        declare $ Declaration (ExprName n) t -- ==> n:t
     -- Signature n := t .
-    Signature  n t   -> rewrite $ Rewrite n (Bound t)                -- ==> n := t
-
-  informCheck "Checked" $ show stmt
+    Signature  n t   -> do
+                        t <- getRewrittenType t
+                        rewrite $ Rewrite n t                -- ==> n := t
+    -- Primitive n .
+    Primitive  n     -> bindPrimitive n                      -- ==> primitive(n)
+  informCheck "End Check" $ show stmt
 
 {-
 
@@ -350,6 +395,7 @@ checkStmt stmt = do
 
 checkExpr :: Expr -> Check ()
 checkExpr expr = do
+  informCheck "Begin Check" $ show expr
   case expr of
     -- n
     ExprName n     -> do
@@ -387,8 +433,7 @@ checkExpr expr = do
                       debugState
                       declare $ Declaration (ExprAppl e f) c  -- (e f) : c
                       debugState
-  -- inform
-  getDeclaration expr >>= informCheck "Checked" . show
+  getDeclaration expr >>= informCheck "End Check" . show
 
 {-
 
@@ -397,7 +442,7 @@ checkExpr expr = do
 -}
 
 informCheck :: String -> String -> Check ()
-informCheck hdr msg = lift.inform $ buffer 12 hdr++" "++msg
+informCheck hdr msg = lift.inform $ buffer 20 hdr++" "++msg
 
 debugState :: Check ()
 debugState = get >>= lift.debug.show
