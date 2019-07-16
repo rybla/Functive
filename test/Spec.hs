@@ -3,25 +3,39 @@ import           Grammar
 import           Nat
 import           Typing
 
-x = ExprName . Name $ "x"
-y = ExprName . Name $ "y"
-f = ExprName . Name $ "f"
 
-t = TypeName . Name $ "t"
-n = Name "n"
-m = Name "m"
+{-
 
-prgm = Prgm [ Definition n t
-              $ ExprAppl (ExprFunc (Name "x") (ExprAppl f x)) x ]
+  # Stock
 
--- expr = ExprAppl (ExprFunc (Name "x") (ExprAppl f x)) x
-expr = ExprAppl f x
+-}
+
+[a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z] =
+  map Name
+    ["a","b","c","d","e","f","g","h","i","j","k","l","m"
+    ,"n","o","p","q","r","s","t","u","v","w","x","y","z"]
+
+prgm = Prgm [ Definition n (TypeName t)
+              $ ExprAppl
+                  (ExprFunc n
+                    (ExprAppl
+                      (ExprName f)
+                      (ExprName x)))
+                  (ExprName x)
+            , Definition m (TypeFunc (TypeName t) (TypeName t))
+              $ ExprFunc x (ExprName x)
+            ]
+
+{-
+
+  # Main
+
+-}
 
 header = "\n\n"++replicate 98 '='++"\n\n"
 
 main :: IO ()
 main = do
   putStr header
-  -- runStateT (checkPrgm prgm) emptyTypeContext
-  runStateT (checkExpr expr) emptyTypeContext
+  runStateT (checkPrgm prgm) emptyTypeContext
   putStr header

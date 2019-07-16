@@ -5,7 +5,7 @@ import           Control.Monad
 makeLogger :: Bool -> String -> (String -> IO ())
 makeLogger toggle hdr msg = when toggle $ putStrLn $ "["++hdr++"] "++msg
 
-debug = makeLogger True "$"
+debug  = makeLogger False "$"
 inform = makeLogger True ">"
 
 buffer :: Int -> String -> String
